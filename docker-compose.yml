@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Banco de Dados PostgreSQL
+  postgres:
+    image: postgres:14
+    container_name: erp-postgres
+    environment:
+      POSTGRES_DB: erp_roupas_infantis
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: senha123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Flask
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:senha123@postgres:5432/erp_roupas_infantis
+      SECRET_KEY: sua-chave-secreta-producao
+      JWT_SECRET_KEY: sua-chave-jwt-producao
+      FLASK_ENV: production
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - erp-network
+    volumes:
+      - ./backend:/app
+    command: python run.py
+
+  # Frontend React
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - erp-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+
+networks:
+  erp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
